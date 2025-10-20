@@ -24,7 +24,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Task List with Dark/Light Mode',
+      title: 'Task List with Priority & Dark/Light Mode',
       theme: isDarkMode ? ThemeData.dark() : ThemeData.light(),
       home: TaskListScreen(
         isDarkMode: isDarkMode,
@@ -51,6 +51,10 @@ class TaskListScreen extends StatefulWidget {
 class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController nameController = TextEditingController();
 
+  // Priority options
+  final List<String> priorities = ['Low', 'Medium', 'High'];
+  String selectedPriority = 'Low';
+
   List<Map<String, dynamic>> items = [];
 
   void _addItem() {
@@ -66,10 +70,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
       items.insert(0, {
         'item': Item(id: null, name: taskName),
         'completed': false,
+        'priority': selectedPriority,
       });
+      _sortByPriority();
     });
 
     nameController.clear();
+    selectedPriority = 'Low'; // Reset dropdown
   }
 
   void _toggleComplete(int index, bool value) {
@@ -84,17 +91,42 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
   }
 
+  void _sortByPriority() {
+    const order = {'High': 3, 'Medium': 2, 'Low': 1};
+    items.sort((a, b) =>
+        order[b['priority']]!.compareTo(order[a['priority']]!)); // High first
+  }
+
+  void _changePriority(int index, String newPriority) {
+    setState(() {
+      items[index]['priority'] = newPriority;
+      _sortByPriority();
+    });
+  }
+
   @override
   void dispose() {
     nameController.dispose();
     super.dispose();
   }
 
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'High':
+        return Colors.redAccent;
+      case 'Medium':
+        return Colors.orangeAccent;
+      case 'Low':
+      default:
+        return Colors.greenAccent;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Task List'),
+        title: const Text('My Task List with Priority'),
         actions: [
           Row(
             children: [
@@ -114,6 +146,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            // Task name input
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
@@ -123,6 +156,32 @@ class _TaskListScreenState extends State<TaskListScreen> {
               onSubmitted: (_) => _addItem(),
             ),
             const SizedBox(height: 12),
+
+            // Priority dropdown
+            Row(
+              children: [
+                const Text('Priority:'),
+                const SizedBox(width: 10),
+                DropdownButton<String>(
+                  value: selectedPriority,
+                  items: priorities.map((String priority) {
+                    return DropdownMenuItem<String>(
+                      value: priority,
+                      child: Text(priority),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedPriority = value!;
+                    });
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Add + Refresh buttons
             Row(
               children: [
                 Expanded(
@@ -134,18 +193,21 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => setState(() {}),
-                    child: const Text('Refresh List'),
+                    onPressed: () => setState(() => _sortByPriority()),
+                    child: const Text('Refresh & Sort'),
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
             const Text(
               'Tasks:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+
+            // Task List
             Expanded(
               child: items.isEmpty
                   ? const Center(child: Text('No tasks yet'))
@@ -155,8 +217,15 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       itemBuilder: (context, index) {
                         final item = items[index]['item'] as Item;
                         final completed = items[index]['completed'] as bool;
+                        final priority = items[index]['priority'] as String;
 
                         return ListTile(
+                          leading: Switch(
+                            value: completed,
+                            onChanged: (value) =>
+                                _toggleComplete(index, value),
+                            activeColor: Colors.green,
+                          ),
                           title: Text(
                             item.name,
                             style: TextStyle(
@@ -166,13 +235,37 @@ class _TaskListScreenState extends State<TaskListScreen> {
                               color: completed ? Colors.grey : null,
                             ),
                           ),
-                          leading: Switch(
-                            value: completed,
-                            onChanged: (value) => _toggleComplete(index, value),
-                            activeColor: Colors.green,
+                          subtitle: Row(
+                            children: [
+                              Text(
+                                'Priority: ',
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.secondary),
+                              ),
+                              DropdownButton<String>(
+                                value: priority,
+                                underline: Container(),
+                                items: priorities.map((String p) {
+                                  return DropdownMenuItem<String>(
+                                    value: p,
+                                    child: Text(
+                                      p,
+                                      style: TextStyle(
+                                        color: _getPriorityColor(p),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) =>
+                                    _changePriority(index, value!),
+                              ),
+                            ],
                           ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.redAccent),
+                            icon: const Icon(Icons.delete,
+                                color: Colors.redAccent),
                             onPressed: () => _removeItem(index),
                           ),
                         );
